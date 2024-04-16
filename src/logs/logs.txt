@@ -1,0 +1,10 @@
+04-15-2024 11:59:43.079733 PM - INFO - Connection from ('127.0.0.1', 50426)
+04-15-2024 11:59:47.199425 PM - INFO - from connected Site: hello
+04-15-2024 11:59:51.361906 PM - INFO - Received from server: Hi
+04-16-2024 11:43:29.882074 AM - INFO - Connected clients: [['127.0.0.1', 53373]]
+04-16-2024 11:44:04.316990 AM - INFO - Connected clients: [['127.0.0.1', 53373], ['127.0.0.1', 53383]]
+04-16-2024 11:44:15.091607 AM - INFO - Received from server: ('127.0.0.1', 7670)
+04-16-2024 11:48:37.022489 AM - INFO - Connected clients: [['127.0.0.1', 53474]]
+04-16-2024 12:00:23.375961 PM - INFO - Connected clients: [['127.0.0.1', 53651]]
+04-16-2024 12:00:45.988293 PM - INFO - Connected clients: [['127.0.0.1', 53665]]
+04-16-2024 12:03:43.062920 PM - INFO - Connected clients: [['127.0.0.1', 53694]]
