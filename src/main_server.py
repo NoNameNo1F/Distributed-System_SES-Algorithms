@@ -1,6 +1,7 @@
 import os
 
-from Server import server
+from Server.server import *
 
 if __name__ == "__main__":
-    server()
+    server = Server()
+    server.ServerRun()
