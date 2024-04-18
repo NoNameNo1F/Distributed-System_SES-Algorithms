@@ -1,3 +1,4 @@
+import ast
 import os
 import socket
 import json
@@ -19,24 +20,37 @@ def client():
     
     client_socket.sendall(str((host, port)).encode())
 
-    connected_clients = client_socket.recv(1024).decode()
-    connected_clients = eval(connected_clients)
-    logger.Log(f"Connected clients: {connected_clients}", "INFO")
-    #print("hy")
+    # connected_clients = client_socket.recv(1024).decode()
+    # connected_clients = eval(connected_clients)
+    # logger.Log(f"Connected clients: {connected_clients}", "INFO")
+    
     
     def receive_client_list():
         connected_clients = client_socket.recv(1024).decode()
+        
+        client_address = list(client_socket.getsockname())
+        print(f"Current clients: {client_address}")
         print("Chuỗi nhận từ sv:", connected_clients)
-        return json.loads(connected_clients)
+        
+        # Chuyển chuỗi thành danh sách Python
+        connected_clients = eval(connected_clients)
+        
+        if client_address in connected_clients:
+            connected_clients.remove(client_address)
+        return connected_clients
 
     
     def update_client_list():
+        nonlocal connected_clients
         connected_clients = receive_client_list()
         logger.Log(f"Connected clients: {connected_clients}", "INFO")
-        
-        
+    
+    
+         
     while True:
         update_client_list()
+        
+    client_socket.close()
     # other_clients = []
 
     # """
@@ -68,5 +82,4 @@ def client():
     #     logger.Log(f"Received from server: {data}", "INFO")
 
     #     message = input(' -> ')
-    client_socket.close()
-
+    

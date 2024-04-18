@@ -3,6 +3,7 @@ import os
 import socket
 import sys
 import threading
+import signal  # Import thư viện signal để xử lý tín hiệu
 
 from dotenv import load_dotenv
 
@@ -10,16 +11,19 @@ from utils.loggings import Logging
 
 
 class Server:
+    
+    
     def __init__(self):
         self._clients = {}
         self._lock = threading.Lock()
         self._logger = Logging("..\logs", "server_logs.txt")
+        self._running = True  # Biến để kiểm soát việc chạy server
         
     def BroadcastClientList(self):
         with self._lock:
             client_list = list(self._clients.keys())
             client_data = json.dumps(client_list).encode()
-            print("data123",client_data)
+            print("List address trên sv",client_data)
             for client_socket in self._clients.values():
                 client_socket.sendall(client_data)
 
@@ -27,7 +31,9 @@ class Server:
         self._logger.Log(f"Connection from {address}", "INFO")
         with self._lock:
             self._clients[address] = client_socket
-
+            
+        
+        self.BroadcastClientList()
             #client_socket.sendall(str(list(self._clients.keys())).encode())
             ##client_socket.sendall(json.dumps(list(self._clients.keys())).encode())
             
@@ -38,7 +44,7 @@ class Server:
                 break
 
             self._logger.Log(f"from connected Site: {data}", "INFO")
-            self.BroadcastClientList()
+            
             
             # with self._lock:
             #     for addr, sock in self._clients.items():
@@ -66,4 +72,3 @@ class Server:
             client_socket, address = server_socket.accept()
             threading.Thread(target=self.HandleClientConnected, \
                             args= (client_socket, address)).start()
-
