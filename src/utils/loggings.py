@@ -11,7 +11,6 @@ from .helpers import get_data_file_path
 class Logging:
     def __init__(self, dir, filename):
         self._path = get_data_file_path(dir, filename)
-        print(self._path)
 
     def Log(self, message, status):
         if status in ["ERROR", "INFO", "WARNING"]:
