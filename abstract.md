@@ -91,3 +91,22 @@ vào trong buffer thay vì tạo 1 chuỗi bytes. Giá trị trả về là (nby
 
 SYNTAX: recv_into(buffer[, nbytes[, flags]]) recv_into: nhận nbyte trên tổng số
 bytes nhận được
+
+############################################## Khởi tạo site, site gọi hàm
+send_mount_message(receiver, message_type, message)
+
+SES: Schiper-Eggli-Sandoz Algorithm. Không cần broadcast message. £ Mỗi process
+lưu 1 vector V_P kích thước N - 1, N số lượng processes. £ Mỗi phần tử của V_P
+chứa (P’,t): P’ là id của process đích và t là vector timestamp. £ tm: thời điểm
+(logic) gửi m £ tPi: thời điểm (logic) hiện tại tại pi £ Ban đầu, V_P rỗng
+############################################## Gửi Message: p Gửi message M,
+time stamped tm, cùng với V_P1 đến P2. p Thêm (P2, tm) vào V_P1. Ghi chồng lên
+(P2,t), nếu có. p (P2,tm) không đc gửi. Các message có (P2,tm) trong V_P1 chỉ đc
+chuyển đến P2 khi mà tm < tP2. £ Chuyển giao message p If V_M (in the message)
+không chứa (P2, t), thì có thể chuyển msg này. p /_ (P2, t) exists _/ If tm >
+tP2, buffer the message. (Don’t deliver). p else (tm <= tP2) deliver it
+############################################## Điều kiện t ≥ tP2 nói lên điều
+gì? p t is message vector time stamp. p t > tP2 -> For all j, t[j] > tP2[j] p Có
+tồn tại sự kiện trong process khác mà P2’s chưa cập nhật. Vì vậy P2 quyết định
+buffer the message. £ Khi t < tP2, message đc chuyển & tP2 được cập nhật với
+thông tin trong V_P2 (sau phép trộn).
