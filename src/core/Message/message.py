@@ -4,33 +4,39 @@ from core.Message.message_type import MessageType
 
 
 class Message:
-    def __init__(self, sender: str, receiver: str, messageType: int, messageContent: str, timestamp: dict, vp: dict) -> None:
+    def __init__(self, sender: int, receiver: int, messageType: int, messageContent: str, timestamps: dict, vp: dict) -> None:
         self._sender = sender
         self._receiver = receiver
         self._messageType = messageType
         self._messageContent = messageContent
-        self._timestamp = timestamp
+        self._timestamps = timestamps
         self._vp = vp
-    """
-        return from dict to Message
-    """
-    def from_dict(self, message):
+
+    @classmethod
+    def from_dict(cls, message):
+        """
+            return from dict to Message
+        """
         return Message(
-            message["sender"],
-            message["receiver"],
-            message["message"],
-            message["timestamps"],
-            message["vp"],
-            message["message_type"],
+            message["_sender"],
+            message["_receiver"],
+            message["_messageType"],
+            message["_messageContent"],
+            message["_timestamps"],
+            message["_vp"],
         )
 
-    """
-        load dict from string
-    """
-    def from_string(self, message):
-        return Message.from_dict(json.loads(message))
-    """
-        convert dict to string
-    """
-    def to_string(self) -> str:
+    @classmethod
+    def from_string(csl, message):
+        """
+            load dict from string
+        """
+        msgStr2Dict = json.loads(message)
+        return Message.from_dict(msgStr2Dict)
+
+
+    def __str__(self) -> str:
+        """
+            convert dict to string
+        """
         return json.dumps(self.__dict__)
