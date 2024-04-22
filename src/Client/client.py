@@ -7,8 +7,6 @@ from dotenv import load_dotenv
 
 from core.Buffer.buffer import *
 from core.Message.message import *
-from core.Message.message_buffer import *
-from core.Message.message_compare import *
 from core.Message.message_type import *
 from core.Message.message_type import MessageType
 from core.VectorClock.vectorclock import *
@@ -16,7 +14,7 @@ from utils.helpers import *
 from utils.loggings import Logging
 
 
-class PeerYLS:
+class PeerYFS:
     # load HOST, PORT from .ENV
     config = load_dotenv()
     HOST = os.environ.get('HOST')
@@ -31,15 +29,19 @@ class PeerYLS:
             7674: {'siteName': 'Site5'}
         }
         self._logger = Logging("../logs","logs.txt")
-        self._sites = self.setup_site(port)
+        self._sites, self._peerId = self.__setup_site(port)
+        self._folderPath = get_foldershares_path()
 
         self._clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._clientSocket.bind((PeerYLS.HOST, port))
+        self._clientSocket.bind((PeerYFS.HOST, port))
         self._address = self._clientSocket.getsockname() # address ('127.0.0.1', port)
 
-        self.send_broadcast_command(messa)
+        self._timestamps = self.__init_timestamps() # init local vector time (){'Site1': 1, 'Site2': 3}
+        self._vp = {} #{'_vp2': {'Site1': 1, 'Site2': 3}}
+        self._messageQueue = []
+        self.send_broadcast()
 
-    def setup_site(self, port) -> dict:
+    def __setup_site(self, port) -> dict:
         """
             Hàm để tạo folder:
             ├───FolderSite1
@@ -54,69 +56,151 @@ class PeerYLS:
         main_folder = f'Folder{site_name}'
         subfolders = [f'Peer{site_name}', 'OtherSites']
 
-        self._sites = self.remove_sites(port)
+        self._sites, self._peerId = self.__remove_sites(port)
         other_sites_subfolders = []
         for siteName in self._sites.values():
             other_sites_subfolders.append(f'SharePeer{siteName}')
 
         # Call the function to create the directory structure
         create_folders(main_folder, subfolders, other_sites_subfolders)
-        return self._sites
+        return self._sites, self._peerId
 
-    def remove_sites(self, port: int) -> dict:
+    def __remove_sites(self, port: int) -> dict:
         """
             bỏ sites có port trong _sites
         """
         if port in self._sites.keys():
+            self._peerId = {port: self._sites[port]['siteName']}
             del self._sites[port]
             print(f"Site with port {port} removed successfully.")
-        return self._sites
+        return self._sites, self._peerId
 
-    def updating_sites_address(self, addresses):
+    def __updating_sites_address(self, addresses):
         for addr in addresses:
             if addr not in self._sites.keys():
                 self._sites[addr] = len(self._sites) + 1
 
-    def jsonstring_to_dict(self, data: dict) -> dict:
+    def __init_timestamps(self):
+        return {'Site1': 0, 'Site2': 0, 'Site3': 0, 'Site4': 0, 'Site5': 0}
+
+    # def init_vp(self):
+    #     for siteName in self._sites.values():
+    #         self._vp[siteName['siteName']] = {'Site1': 0, 'Site2': 0, 'Site3': 0, 'Site4': 0, 'Site5': 0}
+    #     return self._vp
+    def __increase_timestamps(self) -> dict:
+        self._timestamps[self._peerId.values()] += 1
+        return self._timestamps
+
+    def __update_timestamps(self, timestamps):
+        """
+            Receive a message with timestamps
+            timestamps = {
+                'Site1': 2,
+                'Site2': 4, // not updating this
+                'Site3': 4,
+                'Site4': 8,
+                'Site5': 2
+            }
+        """
+        self._timestamps = self.__increase_timestamps()
+
+        for tstamps_site in timestamps.keys():
+            if tstamps_site != self._peerId.values():
+                self._timestamps[tstamps_site] = timestamps[tstamps_site]
+
+    def __update_vp(self, vp):
+        """
+            Receive a message with vp
+            vp = {
+                'Site1': {
+                    'Site1': 2,
+                    'Site2': 4, // not updating this
+                    'Site3': 4,
+                    'Site4': 8,
+                    'Site5': 2
+                }
+            }
+        """
+        self._timestamps[self._peerId.keys()] += 1
+
+        for tstamps_site in vp.keys():
+            if tstamps_site != self._peerId.keys():
+                self._timestamps[tstamps_site] = vp[tstamps_site]
+
+    def __jsonstring_to_dict(self, data: dict) -> dict:
         dict = {}
         for key, value in data.items():
             key = tuple(eval(key))
             dict[key] = value
         return dict
 
-    def send_broadcast_sites_updatdhdfge(self):
-        if len(self._clients) > 1:
-            """
-                For loop này sẽ gửi msg cho client_socket, chứ ko gửi cho
-                từng th khác , fOck
-            """
-            for addr, sock in self._clients.items():
-                sites = self._clients.copy()
-                del sites[addr]
-                #print(f"{sites[addr]}")
-                sites = self.dict_to_string(sites)
+    def send_broadcast(self):
+        """
+            first mount command when initialize a port
+        """
+        for sitePort, siteName in self._sites.items():
+            # 1. set addr of receiver
+            receiver = tuple((PeerYLS.HOST, sitePort))
+            # 2. update timestamps of site send
+            self._timestamps = self.__increase_timestamps()
+            # 3. zip message # int/int/int/str/dict/dict
+            message = Message(self._peerId.keys(), sitePort, MessageType.SEND_MOUNT.value, "",self._timestamps, self._vp)
+            # 4. send message
+            self._clientSocket.sendto(json.dumps(message).encode("utf-8"),receiver)
+            self._logger.Log(f"{self._address}: Sent MOUNT to {receiver}", "INFO")
 
-                #self._serverSocket.sendall(json.dumps(sites).encode(),
-                #addr)
-                """
-                    ? gửi từ
-                    client_socket.sendall(json.dumps(sites).encode())
-                """
-                client_socket.sendall(json.dumps(sites).encode())
-                    #self._serverSocket.sendto(json.dumps(sites).encode(), addr)
-    def send_message_broadcast(self, messageType: MessageType):
-        for site in self._sites.keys():
-            message = {
-                'message_type': message.message_type,
-                'file_name': aa
-            }
-    def receive_message_broadcast(self, address_from, address_to, message):
+            # 5. after sending updating vp
+            # cập nhật V_P2 = {P1: {0,1,0}} # V_P2[revc] = self._timestamps
+            self._vp[siteName['siteName']] = self._timestamps
+
+    def __check_port_valid(self, port: int) -> bool:
+        if port in self._sites.keys():
+            return True
+        return False
+
+    def send_message_SES(self, receiver: int, messageType: int, file_name: str, message: str):
+        """
+            receiver: int -> site_port that received message
+            messateType: int -> the index of MessageType.MOUNT/READ/WRITE/START_WRITING/STOP_WRITING
+            file_name: str -> file_name if messageType is READ/WRITE/START_WRITING/STOP_WRITING
+            message: message if messageType is WRITE/START_WRITING/STOP_WRITING
+        """
+        if self.check_port_valid(receiver):
+            self._timestamps = self.__update_timestamps()
+
+        message = Message(
+            self._peerId.keys(), # port send
+            siteReceive, # port receive
+            messageType,
+            message,
+            file_name,
+            self._timestamps,
+            self._vp)
+
+        if messageType == MessageType.SEND_MOUNT.value:
+            message = 1
+        if messageType == MessageType.SEND_READ.value:
+            A
+        if messageType == MessageType.SEND_MOUNT.value:
+            A
+        for siteReceive in self._sites.keys():
+            self._timestamps = self.__update_timestamps()
+
+    def receive_message_SES(self, address_from, address_to, message):
+
+        """
+            tmp = {'Site1': 4, 'Site3': 1, '}
+        """
         return
-    def send_command_mount(self, address_from, address_to, message):
-
+    def send_command_mount(self, address_to, messageType):
+        self.send_message_broadcast()
         return
     def receive_command_mount(self, address_from, address_to, message):
-        return
+        """
+            handle mount message
+        """
+
+
     def send_command_read(self, address_from, address_to, message):
         return
     def receive_command_read(self, address_from, address_to, message):
@@ -133,9 +217,15 @@ class PeerYLS:
         return
     def receive_command_stop_writing(self, address_from, address_to, message):
         return
+
     def handle_read_file(self):
         return
     def handle_write_file(self):
+        return
+
+    def handle_read_command(site, file_name):
+        return
+    def handle_write_command(site, file_name, message_content):
         return
     def client_listen_event(self):
         """
@@ -145,22 +235,52 @@ class PeerYLS:
                     file_name: là file cần thực hiện read/write hoặc mount
         """
         while True:
-            #received_data, sender = self._clientSocket.recvfrom(2048,???).decode()
-            #received_data = self._clientSocket.recvfrom(2048, ((ClientYLS.HOST, ClientYLS.PORT))).decode()
             received_data, address = self._clientSocket.recvfrom(2048)
-            self._logger.Log(f"Received data: {received_data.decode('utf-8')} from {address}", "INFO")
+            received_data = received_data.decode('utf-8')
+            self._logger.Log(f"{self._address}: Received {received_data} from {address}", "INFO")
+
             try:
-                data = json.loads(received_data)
-                received_data = self.jsonstring_to_dict(data)
+                # extract data into Message type
+                message = Message.from_string(received_data)
+
+                if message._messageType == MessageType.SEND_MOUNT.value:
+
+                    """
+                        1. CHECK PEER SITE FOLDER DATA, COUNT FILE, THEN LOOP TO
+                        GET ALL DATA INTO 1
+                    """
+
+                if message._messageType == MessageType.SEND_READ.value:
+                    return
+                if message._messageType == MessageType.SEND_WRITE.value:
+                    return
+                if message._messageType == MessageType.SEND_START_WRITING.value:
+                    return
+                if message._messageType == MessageType.SEND_STOP_WRITING.value:
+                    return
+
+                if message._messageType == MessageType.RECEIVE_MOUNT.value:
+                    return
+                if message._messageType == MessageType.RECEIVE_READ.value:
+                    return
+                if message._messageType == MessageType.RECEIVE_WRITE.value:
+                    return
+                if message._messageType == MessageType.RECEIVE_START_WRITING.value:
+                    return
+                if message._messageType == MessageType.RECEIVE_STOP_WRITING.value:
+                    return
+
             except json.JSONDecodeError as e:
                 self._logger.Log(f"Invalid JSON format received: {received_data}", "ERROR")
                 continue
 
             print(f"Thông tin site từ server: {received_data}")
 
-            self.updating_sites_address(received_data)
+            self.__updating_sites_address(received_data)
 
             print("Other clients:", self._sites)
+
+
 
 
     def display_user_options(self):
@@ -171,6 +291,10 @@ class PeerYLS:
         print("read {SITE} {FILENAME}")
         print("write {SITE} {FILENAME} {MESSAGE_TO_WRITE}")
 
+    def __get_port_by_site(self, site: str) -> int:
+        for port, site in self._sites.items():
+            if site['siteName'] == site:
+                return port
 
 
     def handle_site_command(self):
@@ -195,7 +319,7 @@ class PeerYLS:
                 if len(command_options) == 2:
                     if command_options[0].lower() not in self._sites.values():
                         self._logger.Log(f"READ COMMAND - {command_options[0]} not in sites known")
-                    site = command_options[0]
+                    site = self.__get_port_by_site(command_options[0])
                     file_name = command_options[1]
                     self.handle_read_command(site, file_name)
 
@@ -209,7 +333,7 @@ class PeerYLS:
                 if len(command_options) == 3:
                     if command_options[0].lower() not in self._sites.values():
                         self._logger.Log(f"WRITE COMMAND - {command_options[0]} not in sites known")
-                    site = command_options[0]
+                    site = self.__get_port_by_site(command_options[0])
                     file_name = command_options[1]
                     message_content = command_options[2]
                     self.handle_write_command(site, file_name, message_content)
