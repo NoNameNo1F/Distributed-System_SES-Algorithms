@@ -14,6 +14,26 @@ def get_foldershares_path():
     path = os.path.join(current_dir, '../../FolderShares')
     return os.path.normpath(path)
 
+def get_peer_folder(peerSite):
+    #peerSite is a name of Site: like Site1,Site2,...
+    parent_path = get_foldershares_path()
+    # get FolderSiteX
+    folder_peer = os.path.join(parent_path, f"Folder{peerSite}")
+    # get PeerSiteX
+    main_folder_peer = os.path.join(folder_peer, f"Peer{peerSite}")
+    return main_folder_peer
+
+def get_otherpeer_folder(peerSite, receiverSite):
+    #peerSite is a name of Site: like Site1,Site2,...
+    parent_path = get_foldershares_path()
+    # get FolderSiteX
+    folder_otherpeer = os.path.join(parent_path, f"Folder{peerSite}")
+    # get OtherSiteX
+    other_folder_peer = os.path.join(folder_otherpeer, f"OtherSites")
+    # get particular receiverSiteX
+    share_peer_site = os.path.join(other_folder_peer, f"SharePeer{receiverSite}")
+    return share_peer_site
+
 def get_data_file_path(dir, filename):
     """
         Get specific file path
