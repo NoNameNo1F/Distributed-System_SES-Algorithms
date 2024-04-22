@@ -11,7 +11,7 @@ if __name__ == "__main__":
     if(len(sys.argv) == 2):
         input_port = int(sys.argv[1])
         if input_port in range(7670,7675):
-            client = PeerYLS(input_port)
+            client = PeerYFS(input_port)
             client_yls = threading.Thread(target=client.client_listen_event, args=())
             client_input = threading.Thread(target=client.handle_site_command, args=())
             #client_input = threading.Thread(target=handle_site_command, args=(client,))
