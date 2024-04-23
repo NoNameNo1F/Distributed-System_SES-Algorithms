@@ -91,7 +91,7 @@ class PeerYFS:
         self._timestamps[self._peerId.values()] += 1
         return self._timestamps
 
-    def __update_timestamps(self, timestamps):
+    def __update_receive_timestamps(self, timestamps):
         """
             Receive a message with timestamps
             timestamps = {
@@ -108,24 +108,67 @@ class PeerYFS:
             if tstamps_site != self._peerId.values():
                 self._timestamps[tstamps_site] = timestamps[tstamps_site]
 
-    def __update_vp(self, vp):
+    def __update_receive_vp(self, vp):
+        for vp_site in vp.keys():
+            if vp_site != self._peerId.values():
+                # vp_site:
+                # 1. if site not in vp_site receive
+                if vp_site not in self._vp.key():
+                    self._vp[vp_site] = vp[vp_site]
+                else:
+                    # nếu có thì kt các update site khác
+                    for vp_chill in self._vp[vp_site].keys():
+                        if self._vp[vp_site][vp_chill] >= vp[vp_site][vp_chill]:
+                            self._vp[vp_site][vp_chill] = vp[vp_site][vp_chill]
+        return self._vp
+    def __check_delivery(self, vp) -> bool:
         """
-            Receive a message with vp
-            vp = {
-                'Site1': {
-                    'Site1': 2,
-                    'Site2': 4, // not updating this
-                    'Site3': 4,
-                    'Site4': 8,
-                    'Site5': 2
-                }
-            }
+            Kiểm tra timestamps của vp có thỏa với timestamps của site nhận ko
         """
-        self._timestamps[self._peerId.keys()] += 1
+        for vp_i in vp.keys():
+            if vp[vp_i] == vp[self._peerId.values()]:
+                for i in self._timestamps.key():
+                    if vp[vp_i][i] > self._timestamps[i]:
+                        return False
+                return True
 
-        for tstamps_site in vp.keys():
-            if tstamps_site != self._peerId.keys():
-                self._timestamps[tstamps_site] = vp[tstamps_site]
+    def __compare_timestamps(self, timestamps):
+        """
+            so sánh 2 timestamps
+        """
+        for site, tS in timestamps.items():
+            if site not in self._timestamps:
+                return False
+            if tS > self._timestamps[site]:
+                return False
+        return True
+
+    def pop_message(self, message):
+        """
+            thực hiện cập nhật tm, vp sau đó unqueue message ra khỏi buffer
+        """
+        self.__update_receive_timestamps(message._timestamps[self._peerId.values()])
+        self.__update_receive_vp(message._vp)
+
+    def check_queue(self):
+        """
+            Kiểm tra có msg nào có thể unqueue dc ko
+            Nếu có thì gọi hàm pop message
+            Sau đó bỏ message
+        """
+        if len(self._messageQueue) > 0:
+            for message in self._messageQueue:
+                flag = True
+                for i in self._timestamps.keys():
+                    if message._vp[self._peerId.values()][i] > self._timestamps[i]:
+                    # message vẫn chưa đc release
+                        flag = False
+                        break
+                # check valid
+                if flag:
+                    # True thì unqueue message update tm, vp
+                    self.pop_message(message)
+                    self._messageQueue.remove(message)
 
     def __jsonstring_to_dict(self, data: dict) -> dict:
         dict = {}
@@ -140,7 +183,7 @@ class PeerYFS:
         """
         for sitePort, siteName in self._sites.items():
             # 1. set addr of receiver
-            receiver = tuple((PeerYLS.HOST, sitePort))
+            receiver = tuple((PeerYFS.HOST, sitePort))
             # 2. update timestamps of site send
             self._timestamps = self.__increase_timestamps()
             # 3. zip message # int/int/int/str/dict/dict
@@ -180,9 +223,9 @@ class PeerYFS:
         if messageType == MessageType.SEND_MOUNT.value:
             message = 1
         if messageType == MessageType.SEND_READ.value:
-            A
+            Aaa
         if messageType == MessageType.SEND_MOUNT.value:
-            A
+            Aaa
         for siteReceive in self._sites.keys():
             self._timestamps = self.__update_timestamps()
 
@@ -196,9 +239,8 @@ class PeerYFS:
         self.send_message_broadcast()
         return
     def receive_command_mount(self, address_from, address_to, message):
-        """
-            handle mount message
-        """
+        sitePeer = self._peerId[message._receiver]
+        folder2read = get_peer_folder(sitePeer)
 
 
     def send_command_read(self, address_from, address_to, message):
@@ -239,36 +281,39 @@ class PeerYFS:
             received_data = received_data.decode('utf-8')
             self._logger.Log(f"{self._address}: Received {received_data} from {address}", "INFO")
 
+            # Check msg_time
+            if self.__check_delivery(message._vp):
+                #Kiểm tra hàng đợi
+                self.check_queue()
+
+            else:
+                # đưa vào buffer
+                self._messageQueue.append(message)
             try:
                 # extract data into Message type
                 message = Message.from_string(received_data)
-
                 if message._messageType == MessageType.SEND_MOUNT.value:
-
-                    """
-                        1. CHECK PEER SITE FOLDER DATA, COUNT FILE, THEN LOOP TO
-                        GET ALL DATA INTO 1
-                    """
-
+                    self.receive_command_mount(message)
                 if message._messageType == MessageType.SEND_READ.value:
-                    return
+                    self.receive_command_read(message)
                 if message._messageType == MessageType.SEND_WRITE.value:
-                    return
+                    self.receive_command_write(message)
                 if message._messageType == MessageType.SEND_START_WRITING.value:
-                    return
+                    self.receive_command_start_writing(message)
                 if message._messageType == MessageType.SEND_STOP_WRITING.value:
-                    return
+                    self.receive_command_stop_writing(message)
 
-                if message._messageType == MessageType.RECEIVE_MOUNT.value:
-                    return
-                if message._messageType == MessageType.RECEIVE_READ.value:
-                    return
-                if message._messageType == MessageType.RECEIVE_WRITE.value:
-                    return
-                if message._messageType == MessageType.RECEIVE_START_WRITING.value:
-                    return
-                if message._messageType == MessageType.RECEIVE_STOP_WRITING.value:
-                    return
+                else: #receive a reply
+                    if message._messageType == MessageType.RECEIVE_MOUNT.value:
+                        self.send_command_mount(message)
+                    if message._messageType == MessageType.RECEIVE_READ.value:
+                        self.send_command_(message)
+                    if message._messageType == MessageType.RECEIVE_WRITE.value:
+                        return
+                    if message._messageType == MessageType.RECEIVE_START_WRITING.value:
+                        return
+                    if message._messageType == MessageType.RECEIVE_STOP_WRITING.value:
+                        return
 
             except json.JSONDecodeError as e:
                 self._logger.Log(f"Invalid JSON format received: {received_data}", "ERROR")
