@@ -271,7 +271,8 @@ class PeerYFS:
                 # extract data into Message type
                 if message._messageType == MessageType.SEND_MOUNT.value:
                     self.receive_command_mount(message)
-                if message._messageType == MessageType.SEND_READ.value:
+                if message._messageType == MessageType.SEND_READ.value \
+                    or message._messageType == MessageType.RECEIVE_READ.value:
                     self.receive_command_read(message)
                 if message._messageType == MessageType.SEND_WRITE.value:
                     self.receive_command_write(message)
@@ -280,17 +281,17 @@ class PeerYFS:
                 if message._messageType == MessageType.SEND_STOP_WRITING.value:
                     self.receive_command_stop_writing(message)
 
-                else: #receive a reply
-                    if message._messageType == MessageType.RECEIVE_MOUNT.value:
-                        self.send_command_mount(message)
-                    if message._messageType == MessageType.RECEIVE_READ.value:
-                        self.send_command_(message)
-                    if message._messageType == MessageType.RECEIVE_WRITE.value:
-                        return
-                    if message._messageType == MessageType.RECEIVE_START_WRITING.value:
-                        return
-                    if message._messageType == MessageType.RECEIVE_STOP_WRITING.value:
-                        return
+                # else: #receive a reply
+                #     if message._messageType == MessageType.RECEIVE_MOUNT.value:
+                #         self.send_command_mount(message)
+                #     if message._messageType == MessageType.RECEIVE_READ.value:
+                #         self.send_command_read()
+                #     if message._messageType == MessageType.RECEIVE_WRITE.value:
+                #         return
+                #     if message._messageType == MessageType.RECEIVE_START_WRITING.value:
+                #         return
+                #     if message._messageType == MessageType.RECEIVE_STOP_WRITING.value:
+                #         return
 
             except json.JSONDecodeError as e:
                 self._logger.Log(f"Invalid JSON format received: {received_data}", "ERROR")
@@ -312,6 +313,162 @@ class PeerYFS:
 
 
     def send_command_read(self, address_from, address_to, message):
+        
+        return
+    def send_command_read(self, port_from, port_recv, file_name):
+        
+        
+        # 2. update timestamps of site send
+        self._timestamps = self.__increase_timestamps()
+        # 3. Tạo message
+        message = Message(
+            self._port,
+            port_recv,
+            MessageType.SEND_READ.value,
+            str(file_name),
+            self._timestamps,
+            self._vp
+        )
+        # 4. send message
+        self._clientSocket.sendto(str(message).encode("utf-8"),port_recv)
+        self._logger.Log(f"{port_from}: Sent READ to {port_recv}", "INFO")
+        # 5. update VP
+        self._vp[self._sites[port_recv]['siteName']] = self._timestamps
+        
+        return
+    
+    def receive_command_read(self, message: Message):
+        try:
+            if message._messageType >= 0:
+            """
+                Nhan request doc tu sender
+            """
+            # Lấy thông tin từ tin nhắn
+            self.__update_receive_timestamps(message._timestamps)
+            self.__update_receive_vp(message._vp)
+            file_name = message._messageContent
+            
+            siteName = self.__get_siteName()
+            folder_site = get_peer_folder(siteName)
+            
+            #doc data ghi vao file_content
+            file_content = read_data_file_path(file_path) ->str
+            
+            
+            # update timestamp
+            # tao message gui
+            # receiver = tuple((self.HOST,message._sender))
+            # message_response = Message(
+            #     self._port,
+            #     message._sender,
+            #     MessageType.RECEIVE_READ.value,
+            #     file_content,
+            #     self._timestamps,
+            #     self._vp
+            # )
+            
+            
+            # self._clientSocket.sendto(str(message_response).encode("utf-8"),receiver)
+            # self._vp[self._sites[message._sender]] = self._timestamps
+
+            else:
+                # Lấy thông tin từ tin nhắn
+                self.__update_receive_timestamps(message._timestamps)
+                self.__update_receive_vp(message._vp)
+                file_name = message._messageContent
+                # ghi vao trong file
+                siteName = self.__get_siteName()
+                folder_site = get_otherpeer_folder(siteName)
+                
+                #doc data ghi vao file_content
+                file_content = write_data_file_path(file_path) ->str
+                
+                
+                # update timestamp
+                # tao message gui
+                # receiver = tuple((self.HOST,message._sender))
+                # message_response = Message(
+                #     self._port,
+                #     message._sender,
+                #     MessageType.RECEIVE_READ.value,
+                #     file_content,
+                #     self._timestamps,
+                #     self._vp
+                # )
+                
+                
+                # self._clientSocket.sendto(str(message_response).encode("utf-8"),receiver)
+                # self._vp[self._sites[message._sender]] = self._timestamps
+                        
+
+        except Exception as e:
+            # Xử lý ngoại lệ nếu có
+            self._logger.Log(f"Error receiving message: {e}", "ERROR")
+            return
+
+    
+
+    def send_command_write(self, port_from, port_to, file_name, data):
+        # 1. set addr of receiver
+        receiver = tuple((self.HOST, port_to))
+        
+        # 2. update timestamps of site send
+        self._timestamps = self.__increase_timestamps()
+        
+        data= ...
+        # 3. Tạo message
+        message = Message(
+            self._address,
+            receiver,
+            MessageType.SEND_WRITE.value,
+            str(file_name),
+            self._timestamps,
+            self._vp
+        )
+        # 4. send message
+        self._clientSocket.sendto(json.dumps(message).encode("utf-8"),receiver)
+        self._logger.Log(f"{port_from}: Sent WRITE to {receiver}", "INFO")
+        # 5. update VP
+        receiver_vp = received_message.vp
+        self._vp = self.__update_receive_vp(receiver_vp)
+        
+        return
+    def receive_command_write(self, port_from, port_to, message):
+        try:
+            # Lắng nghe sự kiện từ socket để nhận tin nhắn
+            while True:
+                received_data, address = self._clientSocket.recvfrom(2048)
+                received_data = received_data.decode('utf-8')
+                self._logger.Log(f"{self._address}: Received {received_data} from {address[1]}", "INFO")
+
+                try:
+                    # Chuyển đổi dữ liệu nhận được thành đối tượng tin nhắn
+                    message = Message.from_string(received_data)
+
+                    # Kiểm tra xem tin nhắn có phải là RECEIVE_WRITE không
+                    if message.message_type == MessageType.RECEIVE_WRITE.value:
+                        # Lấy thông tin từ tin nhắn
+                        file_name = message.file_name
+                        sender_vp = message.vp
+                        # Xử lý yêu cầu READ ở đây, có thể đọc file và gửi nội dung file lại cho người gửi
+
+                        # 1. Đọc nội dung file
+                        # dir là yêu cầu tới site nào là dir site đó
+                        file_path = get_data_file_path(dir,file_name)
+                        data=...
+                        write_to_file(file_path,data)
+
+                        # 3. Cập nhật VP của mình bằng VP của người gửi
+                        self._vp = self.__update_receive_vp(sender_vp)
+
+                except json.JSONDecodeError as e:
+                    self._logger.Log(f"Invalid JSON format received: {received_data}", "ERROR")
+                    continue
+
+        except Exception as e:
+            # Xử lý ngoại lệ nếu có
+            self._logger.Log(f"Error receiving message: {e}", "ERROR")
+            return
         return
     def receive_command_read(self, address_from, address_to, message):
         return
