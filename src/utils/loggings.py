@@ -14,7 +14,7 @@ class Logging:
 
     def Log(self, message, status):
         if status in ["ERROR", "INFO", "WARNING"]:
-            print(f"{datetime.now().strftime('%m-%d-%Y %I:%M:%S.%f %p')} - {status} - {message}\n")
+            #print(f"{datetime.now().strftime('%m-%d-%Y %I:%M:%S.%f %p')} - {status} - {message}\n")
             os.makedirs(os.path.dirname(self._path), exist_ok=True)
             with open(self._path, "a") as output_file:
                 output_file.write(f"{datetime.now().strftime('%m-%d-%Y %I:%M:%S.%f %p')} - {status} - {message}\n")
