@@ -77,29 +77,64 @@ if __name__ == "__main__":
     #receiver = tuple(('127.0.0.1', 7671))
     message_type = MessageType.SEND_MOUNT.value
     message_content = ""
-    tms = {'Site1': 1, 'Site2': 0, 'Site3': 0, 'Site4': 0, 'Site5': 0}
-    vp = {}
-    message = Message(sender, receiver, message_type, message_content, tms, vp)
-    print(f'{message}\nType: {type(message)}\n')
-    print(f'{str(message)}\nType: {type(str(message))}\n')
+    tms = {'Site1': 1, 'Site2': 1, 'Site3': 0}
+    _vp = {
+        'Site1': {
+            'Site1': 0,
+            'Site2': 1,
+            'Site3': 1
+        },
+        'Site2': {
+            'Site1': 0,
+            'Site2': 1,
+            'Site3': 0
+        }
+    }
+    vp = {
+        'Site1': {
+            'Site1': 0,
+            'Site2': 2,
+            'Site3': 0
+        },
+        'Site3': {
+            'Site1': 0,
+            'Site2': 0,
+            'Site3': 0
+        }
+    }
+    # def update_vp(vp, _vp) -> dict:
+    #     for vp_site in vp.keys():
+    #         if vp_site not in _vp.keys():
+    #             #print(vp_site)
+    #             _vp[vp_site] = vp[vp_site]
+    #         else:
+    #             # nếu có thì kt update
+    #             for vp_chill in _vp[vp_site].keys():
+    #                 if _vp[vp_site][vp_chill] >= vp[vp_site][vp_chill]:
+    #                     _vp[vp_site][vp_chill] = vp[vp_site][vp_chill]
+    #     return _vp
+    # print(update_vp(vp, _vp))
+    message1 = Message(sender, receiver, message_type, message_content, tms, vp)
+    message2 = Message(sender, 7677, message_type, message_content, tms, vp)
+    # print(f'{message}\nType: {type(message)}\n')
+    # print(f'{str(message)}\nType: {type(str(message))}\n')
+    # message_json = str(message).encode('utf-8')
+    # print(f'{message_json}\nType: {type(message_json)}\n')
+    # recv = message_json.decode('utf-8')
+    # print(f'{recv}\nType: {type(recv)}\n')
+    # recvvv = Message.from_string(recv)
+    # print(f'{recvvv}\nType: {type(recvvv)}\n')
+    # print(recvvv._sender)
 
-
-    message_json = str(message).encode('utf-8')
-    print(f'{message_json}\nType: {type(message_json)}\n')
-    recv = message_json.decode('utf-8')
-    print(f'{recv}\nType: {type(recv)}\n')
-    recvvv = Message.from_string(recv)
-    print(f'{recvvv}\nType: {type(recvvv)}\n')
     # convertStr2Msg = json.loads(recv)
     # print(f'{convertStr2Msg}\nType: {type(convertStr2Msg)}\n')
     # cStr2Msg = Message.from_dict(convertStr2Msg)
     # print(f'{cStr2Msg}\nType: {type(cStr2Msg)}\n')
+    queue = []
+    queue.append(message1)
+    queue.append(message2)
 
+    print(queue)
 
-    #rere = Message.from_string(recv)
-
-    #print(rere)
-    # rere = Message.from_dict(Message(recv_msg))
-    # print(rev_rve)
-    #main()
-
+    queue.remove(message1)
+    print(queue)
