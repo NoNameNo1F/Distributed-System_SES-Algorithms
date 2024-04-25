@@ -62,3 +62,26 @@ def create_folders(site_folder, site_subfolders, other_sites_subfolders):
         if folder == 'OtherSites':
             for subfolder in other_sites_subfolders:
                 os.makedirs(os.path.join(main_path, folder, subfolder), exist_ok=True)
+
+def is_filename_exists(file_path: str) -> bool:
+    """
+        Return True if file_path exists
+    """
+    return os.path.exists(file_path)
+
+def read_data_from_file(file_path: str) -> str:
+    with open(file_path, 'r') as file:
+        content = file.read()
+    return content
+
+def write_data_to_file(file_path: str, content: str) -> str:
+    with open(file_path, 'a') as file:
+        file.write(content)
+    return content
+
+def get_files_in_folder(folder_path) -> list:
+    file_names = []
+    for _, _, files in os.walk(folder_path):
+        file_names.extend(files)
+
+    return file_names
