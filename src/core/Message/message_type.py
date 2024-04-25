@@ -29,3 +29,35 @@ class MessageType(Enum):
         for item in MessageType:
             list.append(item.name.lower())
         return list
+
+    def get_messagetype_by_index(index) -> str:
+        match index:
+            case MessageType.SEND_MOUNT.value:
+                return MessageType.SEND_MOUNT.name
+
+            case MessageType.RECEIVE_MOUNT.value:
+                return MessageType.RECEIVE_MOUNT.name
+
+            case MessageType.SEND_READ.value:
+                return MessageType.SEND_READ.name
+
+            case MessageType.RECEIVE_READ.value:
+                return MessageType.RECEIVE_READ.name
+
+            case MessageType.SEND_WRITE.value:
+                return MessageType.SEND_WRITE.name
+
+            case MessageType.RECEIVE_WRITE.value:
+                return MessageType.RECEIVE_WRITE.name
+
+            case MessageType.SEND_START_WRITING.value:
+                return MessageType.SEND_START_WRITING.name
+
+            case MessageType.RECEIVE_START_WRITING.value:
+                return MessageType.RECEIVE_START_WRITING.name
+
+            case MessageType.SEND_STOP_WRITING.value:
+                return MessageType.SEND_STOP_WRITING.name
+
+            case MessageType.RECEIVE_STOP_WRITING.value:
+                return MessageType.RECEIVE_STOP_WRITING.name

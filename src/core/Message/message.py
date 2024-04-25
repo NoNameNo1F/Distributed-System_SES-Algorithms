@@ -4,11 +4,12 @@ from core.Message.message_type import MessageType
 
 
 class Message:
-    def __init__(self, sender: int, receiver: int, messageType: int, messageContent: str, timestamps: dict, vp: dict) -> None:
+    def __init__(self, sender: int, receiver: int, messageType: int, messageContent: str, filename: str, timestamps: dict, vp: dict) -> None:
         self._sender = sender
         self._receiver = receiver
         self._messageType = messageType
         self._messageContent = messageContent
+        self._filename = filename
         self._timestamps = timestamps
         self._vp = vp
 
@@ -22,6 +23,7 @@ class Message:
             message["_receiver"],
             message["_messageType"],
             message["_messageContent"],
+            message["_filename"],
             message["_timestamps"],
             message["_vp"],
         )
