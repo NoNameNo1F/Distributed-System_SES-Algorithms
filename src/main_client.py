@@ -21,7 +21,8 @@ if __name__ == "__main__":
             client_yls.start()
             client_input.start()
 
-            client_yls.join()
-            client_input.join()
+            # client_yls.join()
+            # client_input.join()
+
     else:
         print(f'command require PORT or PORT not appropriate to initialize the client')
