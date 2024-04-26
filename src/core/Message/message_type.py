@@ -8,15 +8,12 @@ class MessageType(Enum):
     SEND_MOUNT = 1
     SEND_READ = 2
     SEND_WRITE = 3
-    SEND_START_WRITING = 4
-    SEND_STOP_WRITING = 5
+
 
     # Type When receiving a message and then reply back
     RECEIVE_MOUNT = -1
     RECEIVE_READ = -2
     RECEIVE_WRITE = -3
-    RECEIVE_START_WRITING = -4
-    RECEIVE_STOP_WRITING = -5
 
     def to_dict() -> dict:
         dict = {}
@@ -49,15 +46,3 @@ class MessageType(Enum):
 
             case MessageType.RECEIVE_WRITE.value:
                 return MessageType.RECEIVE_WRITE.name
-
-            case MessageType.SEND_START_WRITING.value:
-                return MessageType.SEND_START_WRITING.name
-
-            case MessageType.RECEIVE_START_WRITING.value:
-                return MessageType.RECEIVE_START_WRITING.name
-
-            case MessageType.SEND_STOP_WRITING.value:
-                return MessageType.SEND_STOP_WRITING.name
-
-            case MessageType.RECEIVE_STOP_WRITING.value:
-                return MessageType.RECEIVE_STOP_WRITING.name
