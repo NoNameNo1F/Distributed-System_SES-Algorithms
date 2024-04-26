@@ -14,7 +14,10 @@ def get_foldershares_path():
     path = os.path.join(current_dir, '../../FolderShares')
     return os.path.normpath(path)
 
-def get_peer_folder(peerSite):
+def get_peer_folder(peerSite) -> str:
+    """
+        Return path: /FolderShares/FolderSiteX/PeerSiteX
+    """
     #peerSite is a name of Site: like Site1,Site2,...
     parent_path = get_foldershares_path()
     # get FolderSiteX
@@ -23,7 +26,10 @@ def get_peer_folder(peerSite):
     main_folder_peer = os.path.join(folder_peer, f"Peer{peerSite}")
     return main_folder_peer
 
-def get_otherpeer_folder(peerSite, receiverSite):
+def get_otherpeer_folder(peerSite, receiverSite) -> str:
+    """
+        Return path: /FolderShares/FolderSiteX/OtherSites/SharePeerSiteX
+    """
     #peerSite is a name of Site: like Site1,Site2,...
     parent_path = get_foldershares_path()
     # get FolderSiteX
@@ -34,7 +40,7 @@ def get_otherpeer_folder(peerSite, receiverSite):
     share_peer_site = os.path.join(other_folder_peer, f"SharePeer{receiverSite}")
     return share_peer_site
 
-def get_data_file_path(dir, filename):
+def get_data_file_path(dir, filename) -> str:
     """
         Get specific file path
     """
@@ -70,13 +76,17 @@ def is_filename_exists(file_path: str) -> bool:
     return os.path.exists(file_path)
 
 def read_data_from_file(file_path: str) -> str:
+
     with open(file_path, 'r') as file:
         content = file.read()
     return content
 
 def write_data_to_file(file_path: str, content: str) -> str:
+    if not os.path.exists(file_path):
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+
     with open(file_path, 'a') as file:
-        file.write(content)
+        file.writelines(content)
     return content
 
 def get_files_in_folder(folder_path) -> list:
