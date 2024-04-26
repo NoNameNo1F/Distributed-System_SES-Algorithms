@@ -5,11 +5,9 @@ import socket
 
 from dotenv import load_dotenv
 
-from core.Buffer.buffer import *
 from core.Message.message import *
 from core.Message.message_type import *
 from core.Message.message_type import MessageType
-from core.VectorClock.vectorclock import *
 from utils.helpers import *
 from utils.loggings import Logging
 
@@ -28,17 +26,16 @@ class PeerYFS:
             7673: {'siteName': 'Site4'},
             7674: {'siteName': 'Site5'}
         }
-        self._logger = Logging("../logs","logs.txt")
+        self._logger = Logging("../logs","logs.txt", f"logs_{port}.txt")
         self._sites, self._peerId = self.__setup_site(port)
-        self._folderPath = get_foldershares_path()
 
         self._clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._clientSocket.bind((PeerYFS.HOST, port))
 
-        self._address = self._clientSocket.getsockname() # address ('127.0.0.1', port)
+        self._address = self._clientSocket.getsockname()
         self._port = port
-        self._timestamps = self.__init_timestamps() # init local vector time (){'Site1': 1, 'Site2': 3}
-        self._vp = {} #{'_vp2': {'Site1': 1, 'Site2': 3}}
+        self._timestamps = self.__init_timestamps()
+        self._vp = {}
         self._messageQueue = []
         self.send_broadcast_mount()
 
@@ -73,16 +70,7 @@ class PeerYFS:
         if port in self._sites.keys():
             self._peerId = {port: self._sites[port]['siteName']}
             del self._sites[port]
-            print(f"Site with port {port} removed successfully.")
         return self._sites, self._peerId
-
-    def __updating_sites_address(self, addresses) -> None:
-        """
-            dont care this sh!t
-        """
-        for addr in addresses:
-            if addr not in self._sites.keys():
-                self._sites[addr] = len(self._sites) + 1
 
     def __get_peer_sitename(self) -> str:
         """
@@ -97,14 +85,14 @@ class PeerYFS:
         return {'Site1': 0, 'Site2': 0, 'Site3': 0, 'Site4': 0, 'Site5': 0}
 
     def __increase_timestamps(self) -> dict:
-        """
+        """update_receive_vp
             Increasing timestamps local by 1
         """
         site_name = self.__get_peer_sitename()
         self._timestamps[site_name] += 1
         return self._timestamps
 
-    def __update_receive_timestamps(self, timestamps) -> dict:
+    def __update_receive_timestamps(self, timestamps: dict) -> dict:
         """
             Updating local timestamps when receiving message with timestamps
         """
@@ -116,7 +104,7 @@ class PeerYFS:
 
         return self._timestamps
 
-    def __update_receive_vp(self, vp) -> dict:
+    def __update_receive_vp(self, vp: dict) -> dict:
         """
             Updating local V_P when receiving message with V_Ps
         """
@@ -124,13 +112,17 @@ class PeerYFS:
             if vp_site != self.__get_peer_sitename():
                 # vp_site:
                 # 1. if site not in vp_site receive
-                if vp_site not in self._vp.key():
-                    self._vp[vp_site] = vp[vp_site]
+                if vp_site not in self._vp.keys():
+                    self._vp[vp_site] = vp[vp_site].copy()
                 else:
                     # nếu có thì kt các update site khác
-                    for vp_chill in self._vp[vp_site].keys():
-                        if self._vp[vp_site][vp_chill] <= vp[vp_site][vp_chill]:
-                            self._vp[vp_site][vp_chill] = vp[vp_site][vp_chill]
+                    for vp_child in vp[vp_site].keys():
+                        if vp_child in self._vp[vp_site]:
+                            if self._vp[vp_site][vp_child] < vp[vp_site][vp_child]:
+                                self._vp[vp_site][vp_child] = vp[vp_site][vp_child]
+                        else:
+                            self._vp[vp_site][vp_child] = vp[vp_site][vp_child]
+
         return self._vp
 
     def __check_delivery(self, vp) -> bool:
@@ -138,20 +130,17 @@ class PeerYFS:
             Check local timestamps with VP of message receiving
             If it could delivery message instantly or not?
         """
-        for vp_i in vp.keys():
-            if vp[vp_i] == vp[self.__get_peer_sitename()]:
-                for i in self._timestamps.key():
-                    if vp[vp_i][i] > self._timestamps[i]:
-                        return False
-                return True
+
+        site_name = self.__get_peer_sitename()
+        if site_name in vp.keys():
+            return self.__compare_timestamps(vp[site_name])
+        return True
 
     def __compare_timestamps(self, timestamps):
         """
             compare 2 timestamps
         """
         for site, tS in timestamps.items():
-            if site not in self._timestamps:
-                return False
             if tS > self._timestamps[site]:
                 return False
         return True
@@ -163,8 +152,6 @@ class PeerYFS:
         """
         message = self.get_msg_unqueue()
         if message != None:
-            # self.__update_receive_timestamps(message._timestamps[self.__get_peer_sitename()])
-            # self.__update_receive_vp(message._vp)
             return message
 
     def get_msg_unqueue(self) -> Message| None:
@@ -173,13 +160,15 @@ class PeerYFS:
             than local timestamps
         """
         if len(self._messageQueue) > 0:
+            site_name = self.__get_peer_sitename()
             for message in self._messageQueue:
                 flag = True
-                for i in self._timestamps.keys():
-                    if message._vp[self.__get_peer_sitename()][i] > self._timestamps[i]:
-                    # message vẫn chưa đc release
-                        flag = False
-                        break
+                for i in self._timestamps.keys() and flag != False:
+                    if site_name in message._vp.keys():
+                        if message._vp[site_name][i] > self._timestamps[i]:
+                        # message vẫn chưa đc release
+                            flag = False
+                            break
                 # check valid
                 if flag:
                     # True thì unqueue message update tm, vp
@@ -193,28 +182,20 @@ class PeerYFS:
             Sau đó bỏ message
         """
         if len(self._messageQueue) > 0:
+            site_name = self.__get_peer_sitename()
             for message in self._messageQueue:
                 flag = True
-                for i in self._timestamps.keys():
-                    if message._vp[self.__get_peer_sitename()][i] > self._timestamps[i]:
-                    # message vẫn chưa đc release
-                        flag = False
-                        break
+                for i in self._timestamps.keys() and flag != False:
+                    if site_name in message._vp.keys():
+                        if message._vp[site_name][i] > self._timestamps[i]:
+                        # message vẫn chưa đc release
+                            flag = False
+                            break
                 # check valid
                 if flag:
                     # True thì unqueue message update tm, vp
                     return True
         return False
-
-    def __jsonstring_to_dict(self, data: dict) -> dict:
-        """
-            converting jsonstring to dictionary
-        """
-        dict = {}
-        for key, value in data.items():
-            key = tuple(eval(key))
-            dict[key] = value
-        return dict
 
     def __check_port_valid(self, port: int) -> bool:
         """
@@ -251,33 +232,34 @@ class PeerYFS:
             if site_port == port:
                 return self._sites[port]['siteName']
         return None
+
     def send_broadcast_mount(self):
         """
             first mount command when initialize a port
         """
-        for sitePort, siteName in self._sites.items():
-            # 1. set addr of receiver
+        for sitePort in self._sites.keys():
+            self.send_message_SES(sitePort,
+                                MessageType.SEND_MOUNT.value,
+                                "",
+                                "")
 
-            receiver = tuple((PeerYFS.HOST, sitePort))
-            # 2. update timestamps of site send
-            self._timestamps = self.__increase_timestamps()
-            # 3. zip message # int/int/int/str/dict/dict
-            message = Message(self._port, sitePort, MessageType.SEND_MOUNT.value, "","", self._timestamps, self._vp)
-            # 4. send message
-            #self._clientSocket.sendto(json.dumps(message).encode("utf-8"),receiver)
-            self._clientSocket.sendto(str(message).encode("utf-8"),receiver)
-            self._logger.Log(f"{self._address}: Sent MOUNT to {receiver}", "INFO")
-            print(f"[{self._port}] -> [{sitePort}] : [{self._timestamps}] && [{self._vp}]")
-            # 5. after sending updating vp
-            site_name = self.__get_sitename_by_port(sitePort)
-            self._vp[site_name] = self._timestamps
+
+    def send_broadcast_update(self, file_name: str, file_content: str):
+        """
+            first mount command when initialize a port
+        """
+        for sitePort in self._sites.keys():
+            self.send_message_SES(sitePort,
+                                MessageType.RECEIVE_WRITE.value,
+                                file_name,
+                                file_content)
 
     def send_message_SES(self, receiver_port: int, messageType: int, file_name: str, message: str):
         """
-            receiver: int -> site_port that received message
-            messateType: int -> the index of MessageType.MOUNT/READ/WRITE/START_WRITING/STOP_WRITING
-            file_name: str -> file_name if messageType is READ/WRITE/START_WRITING/STOP_WRITING
-            message: message if messageType is WRITE/START_WRITING/STOP_WRITING
+            receiver_port: int -> site_port that received message
+            messateType: int -> the index of MessageType.MOUNT/READ/WRITE
+            file_name: str -> file_name if messageType is MOUNT/READ/WRITE
+            message: message if messageType is WRITE
         """
         # 1. Update timestamps of the site send
         self._timestamps = self.__increase_timestamps()
@@ -299,57 +281,49 @@ class PeerYFS:
         # 4. Send message to receiver
         self._clientSocket.sendto(str(message).encode('utf-8'), receiver)
 
-        # 5. Update VP after sending message
-        site_name = self.__get_sitename_by_port(receiver_port)
-        self._vp[site_name] = self._timestamps
-
-        # 6. Logging
+        # 5. Logging
         msg_type_name = MessageType.get_messagetype_by_index(messageType)
         if messageType > 0:
-            self._logger.Log(f"[{self._address}]: Sent Request [{msg_type_name}] to [{receiver}]", "INFO")
-        else:
-            self._logger.Log(f"[{self._address}]: Sent Response [{msg_type_name}] to [{receiver}]", "INFO")
+            #self._logger.Log(f"[{self._address}]: Sent Request [{msg_type_name}] to [{receiver}]", "INFO")
+            self._logger.Log_Sent(message, msg_type_name)
+
+        # 6. Update VP after sending message
+        site_name = self.__get_sitename_by_port(receiver_port)
+        self._vp[site_name] = self._timestamps.copy()
 
     def handle_receive_SES_message(self, message: Message):
-        # Check msg_time
+        """Xử lý REQUEST MOUNT/READ/WRITE VÀ RESPONSE MOUNT/READ/WRITE"""
         if self.__check_delivery(message._vp):
-            #Nếu có thể chuyển msg
-            try:
-                # extract data into Message type
-                if message._messageType == MessageType.SEND_MOUNT.value \
-                    or message._messageType == MessageType.RECEIVE_MOUNT.value:
-                    self.receive_command_mount(message)
+            #Nếu có thể chuyển giao msg
+            """ 1. Kiểm tra có thể deliver message không"""
 
-                if message._messageType == MessageType.SEND_READ.value \
-                    or message._messageType == MessageType.RECEIVE_READ.value:
-                    self.receive_command_read(message)
+            if message._messageType == MessageType.SEND_MOUNT.value \
+                or message._messageType == MessageType.RECEIVE_MOUNT.value:
+                """Trường hợp xử lý cờ REQUEST MOUNT VÀ RESPONSE MOUNT"""
+                self.receive_command_mount(message)
 
-                if message._messageType == MessageType.SEND_WRITE.value \
-                    or message._messageType == MessageType.RECEIVE_WRITE.value:
-                    self.receive_command_write(message)
+            elif message._messageType == MessageType.SEND_READ.value \
+                or message._messageType == MessageType.RECEIVE_READ.value:
+                """Trường hợp xử lý cờ REQUEST READ VÀ RESPONSE READ"""
+                self.receive_command_read(message)
 
-                # if message._messageType == MessageType.SEND_START_WRITING.value \
-                #     or message._messageType == MessageType.RECEIVE_START_WRITING.value:
-                #     self.receive_command_start_writing(message)
-
-                # if message._messageType == MessageType.SEND_STOP_WRITING.value \
-                #     or message._messageType == MessageType.RECEIVE_STOP_WRITING.value:
-                #     self.receive_command_stop_writing(message)
-
-            except json.JSONDecodeError as e:
-                self._logger.Log(f"Invalid JSON format received: {message}", "ERROR")
+            elif message._messageType == MessageType.SEND_WRITE.value \
+                or message._messageType == MessageType.RECEIVE_WRITE.value:
+                """Trường hợp xử lý cờ REQUEST WRITE VÀ RESPONSE WRITE"""
+                self.receive_command_write(message)
 
         elif self._check_unqueue():
-            # Có msg thỏa để ra khỏi queue:
-            msg_to_unqueue = self.pop_message() ##
-            self._messageQueue.remove(msg_to_unqueue)
-            self.handle_receive_message_SES(msg_to_unqueue)
+            """ 2. Nếu không deliver được thì Kiểm tra có msg trong buffer không"""
+            self.unqueue_message()
+
         else:
+            """ 3. Nếu vẫn không thể lấy message ra khỏi buffer thì tức là vẫn còn message chưa qua, nên buffer lại message"""
             self._messageQueue.append(message)
 
-    def send_command_mount(self, address_to, messageType):
-        self.send_message_broadcast()
-        return
+    def unqueue_message(self):
+        msg_to_unqueue = self.pop_message()
+        self._messageQueue.remove(msg_to_unqueue)
+        self.handle_receive_message_SES(msg_to_unqueue)
 
     def receive_command_mount(self, message: Message):
         """
@@ -361,53 +335,64 @@ class PeerYFS:
             """
             # 1. Cập nhật timestamps site nhận
             self._timestamps = self.__update_receive_timestamps(message._timestamps)
+
             # 2. Cập nhật VP site nhận nếu các timestamp-trong-vp-msg-gửi thỏa timestamps
             self._vp = self.__update_receive_vp(message._vp)
 
+            self._logger.Log_Received(message._sender,
+                                    message._receiver,
+                                    self._timestamps,
+                                    self._vp,
+                                    message._messageType)
             # 3. Lấy path tới file_name cần đọc
             siteName = self.__get_peer_sitename()
             folder_site = get_peer_folder(siteName)
 
-            # 4. Lấy fileNames cần đọc
+            # 4. Lấy danh sách fileNames cần đọc
             file_names = get_files_in_folder(folder_site)
             for file in file_names:
                 path_to_read = get_data_file_path(folder_site, file)
                 content_read = read_data_from_file(path_to_read)
+
                 self.send_message_SES(message._sender, MessageType.RECEIVE_MOUNT.value,file, content_read)
 
         else:
             """
                 Receiving a MOUNT RESPONSE from sender
             """
-            # 1. Cập nhật timestamps site nhận
-            self._timestamps = self.__update_receive_timestamps(message._timestamps)
-            # 2. Cập nhật VP site nhận nếu các timestamp-trong-vp-msg-gửi thỏa timestamps
-            self._vp = self.__update_receive_vp(message._vp)
+            try:
+                # 1. Cập nhật timestamps site nhận
+                self._timestamps = self.__update_receive_timestamps(message._timestamps)
 
-            # 3. Lấy fileName cần đọc
-            file_name = message._filename
-            file_content = message._messageContent
+                # 2. Cập nhật VP site nhận nếu các timestamp-trong-vp-msg-gửi thỏa timestamps
+                self._vp = self.__update_receive_vp(message._vp)
+                self._logger.Log_Received(message._sender,
+                                        message._receiver,
+                                        self._timestamps,
+                                        self._vp,
+                                        message._messageType)
+                # 3. Lấy fileName cần ghi xuống vào othersite sharepeersite và in ra console
+                file_name = message._filename
+                file_content = message._messageContent
 
-            siteName = self.__get_peer_sitename()
-            folder_site = get_peer_folder(siteName)
+                # 4. Lấy path tới sharepeersite response để save/ ghi vào
+                site_response_name = self.__get_sitename_by_port(message._sender)
+                site_name = self.__get_peer_sitename()
+                folder_site = get_otherpeer_folder(site_name, site_response_name)
+                path_to_save = get_data_file_path(folder_site, file_name)
 
-            # 4. Lấy path tới sharepeersite response để save/ ghi vào
-            siteName = self.__get_peer_sitename()
-            folder_site = get_otherpeer_folder(siteName)
-            siteName_to_save = self.__get_sitename_by_port(message._sender)
-            path_to_save = get_data_file_path(folder_site, siteName_to_save)
+                content_read = write_data_to_file(path_to_save, file_content)
+                #self._logger.Log(f"[{message._receiver}]: Received Response MOUNT and saved content: [{message._messageContent}]", "INFO")
 
-            content_read = write_data_to_file(path_to_save)
-            self._logger.Log(f"[{message._receiver}]: Received Response MOUNT and saved content: [{message._messageContent}]", "INFO")
-
-    #def send_command_read(self, receiver_port: int, file_name: str, message: str):
-    #   self.send_message_SES(receiver_port, MessageType.SEND_READ.value, file_name, message)
-
+                msg_type_name = MessageType.get_messagetype_by_index(message._messageType)
+                self._logger.Log_Sent(message, msg_type_name)
+            except Exception as e:
+                print(e)
     def receive_command_read(self, message: Message):
         """
             Handle MessageType SEND_READ and RECEIVE_READ with specific context.
         """
-        if message._messageType >= 0:
+        if message._messageType > 0:
             """
                 Receiving a request read from sender
             """
@@ -415,7 +400,11 @@ class PeerYFS:
             self._timestamps = self.__update_receive_timestamps(message._timestamps)
             # 2. Cập nhật VP site nhận nếu các timestamp-trong-vp-msg-gửi thỏa timestamps
             self._vp = self.__update_receive_vp(message._vp)
-
+            self._logger.Log_Received(message._sender,
+                                    message._receiver,
+                                    self._timestamps,
+                                    self._vp,
+                                    message._messageType)
             # 3. Lấy fileName cần đọc
             file_name = message._filename
             # 4. Lấy path tới file_name cần đọc
@@ -427,7 +416,6 @@ class PeerYFS:
                 self.send_message_SES(message._sender, MessageType.RECEIVE_READ.value,file_name, content_read)
             else:
                 self._logger.Log(f"[{file_name}] isn't exists in folder", "ERROR")
-                return
 
         else:
             """
@@ -437,91 +425,83 @@ class PeerYFS:
             self._timestamps = self.__update_receive_timestamps(message._timestamps)
             # 2. Cập nhật VP site nhận nếu các timestamp-trong-vp-msg-gửi thỏa timestamps
             self._vp = self.__update_receive_vp(message._vp)
+            self._logger.Log_Received(message._sender,
+                                    message._receiver,
+                                    self._timestamps,
+                                    self._vp,
+                                    message._messageType)
             # 3. Lấy fileName cần đọc
             file_name = message._filename
             file_content = message._messageContent
 
             # 4. Lấy path tới sharepeersite response để save
-            siteName = self.__get_peer_sitename()
-            folder_site = get_otherpeer_folder(siteName)
-            siteName_to_save = self.__get_sitename_by_port(message._sender)
-            path_to_save = get_data_file_path(folder_site, siteName_to_save)
+            site_response_name = self.__get_sitename_by_port(message._sender)
+            site_name = self.__get_peer_sitename()
+            folder_site = get_otherpeer_folder(site_name, site_response_name)
 
-            content_read = write_data_to_file(path_to_save)
-            self._logger.Log(f"[{message._receiver}]: Received Response Content: [{message._messageContent}]", "INFO")
+            path_to_save = get_data_file_path(folder_site, file_name)
 
-    # def send_command_write(self, receiver_port: int, file_name: str, message: str):
-    #     self.send_message_SES(receiver_port, MessageType.SEND_WRITE.value,file_name, message)
+            content_read = write_data_to_file(path_to_save, file_content)
+            print(f"{content_read}")
+            msg_type_name = MessageType.get_messagetype_by_index(message._messageType)
+            self._logger.Log_Sent(message, msg_type_name)
+
 
     def receive_command_write(self, message: Message):
         """
             Handle MessageType SEND_WRITE and RECEIVE_WRITE with specific context.
         """
-        if message._messageType >= 0:
+        if message._messageType > 0:
             # 1. Cập nhật timestamps site nhận
             self._timestamps = self.__update_receive_timestamps(message._timestamps)
             # 2. Cập nhật VP site nhận nếu các timestamp-trong-vp-msg-gửi thỏa timestamps
             self._vp = self.__update_receive_vp(message._vp)
+
+            self._logger.Log_Received(message._sender,
+                                    message._receiver,
+                                    self._timestamps,
+                                    self._vp,
+                                    message._messageType)
+
+            file_name = message._filename
+            file_content = message._messageContent
+
+            site_name = self.__get_peer_sitename()
+            folder_path = get_peer_folder(site_name)
+            path_to_write = get_data_file_path(folder_path, file_name)
+            content_write = write_data_to_file(path_to_write, file_content)
+            print(content_write)
+
+            msg_type_name = MessageType.get_messagetype_by_index(message._messageType)
+            self._logger.Log_Sent(message, msg_type_name)
+            self.send_broadcast_update(file_name, content_write)
+
         else:
-            a = []
-        received_data, address = self._clientSocket.recvfrom(2048)
-        received_data = received_data.decode('utf-8')
-        self._logger.Log(f"{self._address}: Received {received_data} from {address[1]}", "INFO")
+            # 1. Cập nhật timestamps site nhận
+            self._timestamps = self.__update_receive_timestamps(message._timestamps)
+            # 2. Cập nhật VP site nhận nếu các timestamp-trong-vp-msg-gửi thỏa timestamps
+            self._vp = self.__update_receive_vp(message._vp)
+
+            self._logger.Log_Received(message._sender,
+                                    message._receiver,
+                                    self._timestamps,
+                                    self._vp,
+                                    message._messageType)
+            # 3. Lấy filename, file content để update
+            file_name = message._filename
+            file_content = message._messageContent
+            # 4. Lấy path tới sharepeersite để update file
+            site_name = self.__get_peer_sitename()
+            site_response_name = self.__get_sitename_by_port(message._sender)
+            folder_site = get_otherpeer_folder(site_name, site_response_name)
 
 
-        # Chuyển đổi dữ liệu nhận được thành đối tượng tin nhắn
-        message = Message.from_string(received_data)
+            path_to_write = get_data_file_path(folder_site, file_name)
+            content_update = write_data_to_file(path_to_write, file_content)
+            print(content_update)
 
-        # Kiểm tra xem tin nhắn có phải là RECEIVE_WRITE không
-        if message.message_type == MessageType.RECEIVE_WRITE.value:
-            # Lấy thông tin từ tin nhắn
-            file_name = message.file_name
-            sender_vp = message.vp
-            # Xử lý yêu cầu READ ở đây, có thể đọc file và gửi nội dung file lại cho người gửi
-
-            # 1. Đọc nội dung file
-            # dir là yêu cầu tới site nào là dir site đó
-            file_path = get_data_file_path(dir,file_name)
-            data=...
-            write_to_file(file_path,data)
-
-            # 3. Cập nhật VP của mình bằng VP của người gửi
-            self._vp = self.__update_receive_vp(sender_vp)
-
-    def send_command_start_writing(self, file_name: str, message: str):
-        for receiver_port in self._sites.keys():
-            self.send_message_SES(receiver_port, MessageType.SEND_START_WRITING.value,file_name, message)
-
-    def receive_command_start_writing(self, receiver_port: int, file_name: str, message: str):
-        return
-
-    def send_command_stop_writing(self, receiver_port: int, file_name: str, message: str):
-        return
-
-    def receive_command_stop_writing(self, receiver_port: int, file_name: str, message: str):
-        return
-
-    def send_start_write(self, message: str, exclude: str):
-        # send list peer_to_address - sender.
-        for i in self.peer_to_address:
-            if i != self.pid and i != exclude:
-                self.send_SES_message(i, message, MessageType.START_WRITING)
-
-    def receive_start_write(self, message: Message):
-        if self.__check_myself(message) == 1: #check yourself is receiver
-            if message.message_type == MessageType.START_WRITING:
-                self.logger.log(message.message_type,f"Somebody start writing to File{message.sender}", force_stdout=True)
-
-    def send_end_write(self, message: str, exclude: str):
-        for i in self.peer_to_address:
-            if i !=self.pid and i != exclude:
-                self.send_SES_message(i, message, MessageType.END_WRITING)
-
-    def receive_end_write(self, message: Message):
-        if self.__check_myself(message) == 1 :
-            if message.message_type == MessageType.END_WRITING:
-                self.logger.log(message.message_type, f"File{message.sender} is old, updating ...")
-                self.send_mount(message.sender)
+            msg_type_name = MessageType.get_messagetype_by_index(message._messageType)
+            self._logger.Log_Sent(message, msg_type_name)
 
 
     def client_listen_event(self):
@@ -533,12 +513,17 @@ class PeerYFS:
         """
         while True:
             try:
-                received_msg, address = self._clientSocket.recvfrom(2048)
+                received_msg = self._clientSocket.recv(2048)
                 message = received_msg.decode('utf-8')
-                self._logger.Log(f"{self._address}: Received {message} from {address}", "INFO")
+                #self._logger.Log(f"{self._address}: Received {message} from
+                #{address}", "INFO")
                 message = Message.from_string(message)
-
+                msg_type_name = MessageType.get_messagetype_by_index(message._messageType)
+                self._logger.Log_Sent(message,msg_type_name)
                 self.handle_receive_SES_message(message)
+                if self._check_unqueue():
+                    self.unqueue_message()
+
             except Exception as e:
                 continue
 
@@ -549,6 +534,10 @@ class PeerYFS:
         print("========= Helping when sending a command========= \n")
         print("READ {SITE_PORT} {FILENAME}")
         print("WRITE {SITE_PORT} {FILENAME} {MESSAGE_TO_WRITE}")
+        print("check: to print current timestamp")
+        print("vp: to print current vp")
+        print("list: length of the buffer message")
+        print("exit: end programs")
 
     def handle_site_command(self):
         """
@@ -562,54 +551,66 @@ class PeerYFS:
             self.display_user_options()
             user_command = input(f"{self._address}$ ").split()
 
-            command = user_command[0].lower()
-            command_options = user_command[1:]
-            receiver_port = int()
-            file_name = str()
 
-            if command == 'exit':
-                self._logger.Log(f"{self._address} Closing Port", "INFO")
-                return
+            if len(user_command) > 0:
+                # go back to display user optio...
+                command = user_command[0].lower()
+                command_options = user_command[1:]
+                receiver_port = int()
+                file_name = str()
 
-            else:
-                # 1. Checking is input Sitename or port
-                if command_options[0].lower().startswith('site') and \
-                    self.__check_siteName_valid(command_options[0]):
-                    """
-                        If user input siteName instead of site Port(xxxx)
-                    """
-                    receiver_port = self.__get_port_by_sitename(command_options[0])
-                elif self.__check_port_valid(int(command_options[0])):
-                    receiver_port = int(command_options[0])
+                if command == 'exit':
+                    self._logger.Log(f"{self._address} Closing Port", "INFO")
+                    break
 
+                elif command == 'list':
+                    print(f"\n {len(self._messageQueue)}\n")
 
-                # 2. Checking filename input have additional filetype
-                if ".txt" in command_options[1]:
-                    file_name = os.path.splitext(command_options[1])[0]
-                else:
-                    file_name = command_options[1]
+                elif command == 'check':
+                    print(f"\n{self._timestamps}\n")
 
-                # 3. Checking Command Options
-                if command == 'read':
-                    """
-                        Để handle cần {Site_port} {FileToRead}
-                    """
-                    if len(command_options) == 2:
-                        self.send_message_SES(receiver_port, MessageType.SEND_READ.value, file_name, "")
-                    else:
-                        self._logger.Log(f"READ COMMAND - missing or got more than 2 params","ERROR")
-
-                if command == 'write':
-                    """
-                        Để handle cần {Site} {FileToWrite} {ContentToWrite}
-                    """
-                    if len(command_options) >= 3:
-                        # message content to write end of the file
-                        message_content = ' '.join(command_options[2:])
-                        self.send_message_SES(receiver_port, MessageType.SEND_WRITE.value, file_name, message_content)
-
-                    else:
-                        self._logger.Log(f"WRITE COMMAND - missing or got more than 3 params", "ERROR")
+                elif command == 'vp':
+                    print(f"\n{self._vp}\n")
 
                 else:
-                    self._logger.Log(f"{self._address} command not appropriate {command} {[str(arg) for arg in command_options]}", "INFO")
+                    # 1. Checking is input Sitename or port
+                    if command_options[0].lower().startswith('site') and \
+                        self.__check_siteName_valid(command_options[0]):
+                        """
+                            If user input siteName instead of site Port(xxxx)
+                        """
+                        receiver_port = self.__get_port_by_sitename(command_options[0])
+                    elif self.__check_port_valid(int(command_options[0])):
+                        receiver_port = int(command_options[0])
+
+
+                    # 2. Checking filename input have additional filetype
+                    if ".txt" not in command_options[1]:
+                        file_name = f"{command_options[1]}.txt"
+                    else:
+                        file_name = command_options[1]
+
+                    # 3. Checking Command Options
+                    if command == 'read':
+                        """
+                            Để handle cần {Site_port} {FileToRead}
+                        """
+                        if len(command_options) == 2:
+                            self.send_message_SES(receiver_port, MessageType.SEND_READ.value, file_name, "")
+                        else:
+                            self._logger.Log(f"READ COMMAND - missing or got more than 2 params","ERROR")
+
+                    elif command == 'write':
+                        """
+                            Để handle cần {Site} {FileToWrite} {ContentToWrite}
+                        """
+                        if len(command_options) >= 3:
+                            # message content to write end of the file
+                            message_content = ' '.join(command_options[2:])
+                            self.send_message_SES(receiver_port, MessageType.SEND_WRITE.value, file_name, message_content)
+
+                        else:
+                            self._logger.Log(f"WRITE COMMAND - missing or got more than 3 params", "ERROR")
+
+                    else:
+                        self._logger.Log(f"{self._address} command not appropriate {command} {[str(arg) for arg in command_options]}", "INFO")
