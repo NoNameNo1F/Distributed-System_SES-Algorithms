@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import threading
 
 from dotenv import load_dotenv
@@ -27,6 +28,4 @@ def jsonstring_to_dict(data: dict) -> dict:
             dict[key] = value
         return dict
 if __name__ == "__main__":
-    clientSocket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    clientSocket.bind((PeerYLS.HOST, 7670))
-    address = clientSocket.getsockname()
+    print(MessageType.MOUNT)
